@@ -7,4 +7,4 @@ Simple application to publish messages to SQS message queue.
 Contains listeners to the queue, which persists the message content in the S3 buckets.
 
 Further development:
-Creating a simple application which connects with DB for persistence but uses S3 as a backup storage. Also, help the DB servers to save their daily archives to S3.
+Creating a simple application which can function as a reliable, secure, and scalable server for handling file processing tasks.
