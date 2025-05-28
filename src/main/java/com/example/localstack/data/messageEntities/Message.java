@@ -1,4 +1,4 @@
-package com.example.localstack.data;
+package com.example.localstack.data.messageEntities;
 
 import java.util.UUID;
 

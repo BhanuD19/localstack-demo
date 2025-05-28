@@ -1,6 +1,6 @@
 package com.example.localstack.service.impl;
 
-import com.example.localstack.service.s3Services;
+import com.example.localstack.service.S3Services;
 import io.awspring.cloud.s3.S3Template;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -10,10 +10,11 @@ import java.io.InputStream;
 
 @Slf4j
 @Service
-public class s3ServiceImpl implements s3Services {
+public class S3ServiceImpl implements S3Services {
     private final S3Template s3Template;
 
     public s3ServiceImpl(S3Template s3Template) {
+    public S3ServiceImpl(S3Template s3Template, KmsAsyncClient kmsAsyncClient) {
         this.s3Template = s3Template;
     }
 

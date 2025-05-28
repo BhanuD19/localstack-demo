@@ -1,7 +1,7 @@
 package com.example.localstack.service.impl;
 
 import com.example.localstack.config.AwsConfig;
-import com.example.localstack.data.Message;
+import com.example.localstack.data.messageEntities.Message;
 import com.example.localstack.service.MessageListener;
 import io.awspring.cloud.sqs.annotation.SqsListener;
 import lombok.extern.slf4j.Slf4j;
@@ -15,9 +15,9 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @Service
 public class MessageListenerImpl implements MessageListener {
     private final AwsConfig awsConfig;
-    private final s3ServiceImpl s3ServiceImpl;
+    private final S3ServiceImpl s3ServiceImpl;
 
-    public MessageListenerImpl(AwsConfig awsConfig, s3ServiceImpl s3ServiceImpl) {
+    public MessageListenerImpl(AwsConfig awsConfig, S3ServiceImpl s3ServiceImpl) {
         this.awsConfig = awsConfig;
         this.s3ServiceImpl = s3ServiceImpl;
     }
