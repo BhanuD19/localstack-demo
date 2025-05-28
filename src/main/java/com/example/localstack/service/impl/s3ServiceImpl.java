@@ -4,18 +4,29 @@ import com.example.localstack.service.S3Services;
 import io.awspring.cloud.s3.S3Template;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.core.SdkBytes;
+import software.amazon.awssdk.services.kms.KmsAsyncClient;
+import software.amazon.awssdk.services.kms.model.EncryptRequest;
+import software.amazon.awssdk.services.kms.model.EncryptResponse;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 
 @Slf4j
 @Service
 public class S3ServiceImpl implements S3Services {
     private final S3Template s3Template;
 
-    public s3ServiceImpl(S3Template s3Template) {
+    private String kmsKeyId;
+    private final KmsAsyncClient kmsAsyncClient;
+
     public S3ServiceImpl(S3Template s3Template, KmsAsyncClient kmsAsyncClient) {
         this.s3Template = s3Template;
+        this.kmsAsyncClient = kmsAsyncClient;
     }
 
     /**
@@ -27,8 +38,8 @@ public class S3ServiceImpl implements S3Services {
     public void upload(String bucketName, String key, InputStream inputStream) {
         log.info("Uploading file to S3 bucket: {}", bucketName);
         s3Template.createBucket(bucketName);
-        s3Template.upload(bucketName, key, inputStream);
-        log.info("File uploaded successfully");
+        s3Template.upload(bucketName, key, encryptContent(inputStream));
+        log.info("File uploaded successfully with key: {}", key);
     }
 
     /**
@@ -52,5 +63,16 @@ public class S3ServiceImpl implements S3Services {
         try (InputStream is = download(bucketName, key)) {
             return new String(is.readAllBytes());
         }
+    }
+
+    private InputStream encryptContent(InputStream content) {
+        EncryptRequest encryptRequest = EncryptRequest.builder().keyId(kmsKeyId).plaintext(SdkBytes.fromInputStream(content)).build();
+        EncryptResponse encryptResponse;
+        try {
+            encryptResponse = kmsAsyncClient.encrypt(encryptRequest).get(5, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException(e);
+        }
+        return encryptResponse.ciphertextBlob().asInputStream();
     }
 }
