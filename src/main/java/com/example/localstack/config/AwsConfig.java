@@ -6,4 +6,5 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties(prefix = "app")
 public record AwsConfig(
         @DefaultValue("testqueue") String queueName,
-        @DefaultValue("testbucket") String bucketName) {}
+        @DefaultValue("testbucket") String bucketName,
+        @DefaultValue("testkey") String kmsKeyId) {}

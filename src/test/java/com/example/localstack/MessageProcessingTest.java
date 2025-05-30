@@ -1,9 +1,9 @@
 package com.example.localstack;
 
 import com.example.localstack.config.AwsConfig;
-import com.example.localstack.data.Message;
+import com.example.localstack.data.messageEntities.Message;
 import com.example.localstack.service.MessagePublisher;
-import com.example.localstack.service.s3Services;
+import com.example.localstack.service.S3Services;
 import org.assertj.core.api.Assertions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +23,7 @@ class MessageProcessingTest {
     @Autowired
     private AwsConfig awsConfig;
     @Autowired
-    private s3Services s3Services;
+    private S3Services s3Services;
 
     @Test
     void shouldHandleMessageSuccessfully() {
@@ -36,3 +36,4 @@ class MessageProcessingTest {
         });
     }
 }
+

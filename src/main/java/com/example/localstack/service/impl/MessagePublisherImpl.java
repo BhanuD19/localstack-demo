@@ -1,6 +1,6 @@
 package com.example.localstack.service.impl;
 
-import com.example.localstack.data.Message;
+import com.example.localstack.data.messageEntities.Message;
 import com.example.localstack.service.MessagePublisher;
 import io.awspring.cloud.sqs.operations.SqsTemplate;
 import lombok.extern.slf4j.Slf4j;

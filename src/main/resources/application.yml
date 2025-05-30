@@ -1,0 +1,32 @@
+spring:
+  application:
+    name: localstack
+  security:
+    oauth2:
+      client:
+        registration:
+          keycloak:
+            client-id: localstack-app
+            client-secret: syGq3IsPzTAFhbF9RiSwwt05S9GpC8PW
+            authorization-grant-type: authorization_code
+            scope:
+              - openid
+              - profile
+              - email
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:9090/realms/test_local_realm
+            user-name-attribute: preferred_username
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9090/realms/test_local_realm
+  cloud:
+    aws:
+      kms:
+        region: us-east-1
+app:
+  bucket-name: local-testbucket
+  queue-name: local-testqueue
+
+server:
+  port: 8081
