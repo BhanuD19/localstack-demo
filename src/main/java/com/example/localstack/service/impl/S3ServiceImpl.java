@@ -33,9 +33,14 @@ public class S3ServiceImpl implements S3Services {
     }
 
     /**
-     * @param bucketName - S3 Bucket to upload to
-     * @param key - Name of the resource on s3
-     * @param inputStream - Stream of the input data
+     * Uploads a file to an S3 bucket. The content of the file is encrypted
+     * before being uploaded. If the bucket does not exist, it will be created.
+     * Logs the upload process and handles any exceptions that occur during
+     * the operation.
+     *
+     * @param bucketName The name of the S3 bucket where the file will be uploaded.
+     * @param key The unique key or identifier for the uploaded file in the bucket.
+     * @param inputStream The input stream containing the file content to be uploaded.
      */
     @Override
     public void upload(String bucketName, String key, InputStream inputStream) {
@@ -52,9 +57,12 @@ public class S3ServiceImpl implements S3Services {
     }
 
     /**
-     * @param bucketName - S3 bucket to download from
-     * @param key - Name of the resource to download
-     * @return - InputStream of the data stored
+     * Downloads a file from an S3 bucket, decrypts its content, and returns it as an InputStream.
+     *
+     * @param bucketName The name of the S3 bucket from which the file will be downloaded.
+     * @param key The unique key or identifier of the file to be downloaded within the bucket.
+     * @return An InputStream containing the decrypted content of the downloaded file.
+     * @throws IOException If an error occurs during the download process.
      */
     @Override
     public InputStream download(String bucketName, String key) throws IOException {
@@ -63,12 +71,21 @@ public class S3ServiceImpl implements S3Services {
         return decryptContent(encryptedContent);
     }
 
+    /**
+     * Decrypts the provided encrypted input stream using AWS KMS and returns the decrypted content as an InputStream.
+     * This method reads all bytes from the provided encrypted content, creates a KMS DecryptRequest, and uses the
+     * AWS KMS client to decrypt the content. If any errors occur during decryption, a RuntimeException is thrown.
+     *
+     * @param encryptedContent The InputStream containing the encrypted content to be decrypted.
+     * @return An InputStream containing the decrypted content.
+     * @throws RuntimeException If an error occurs during the decryption process.
+     */
     private InputStream decryptContent(InputStream encryptedContent) {
         try {
             byte[] content = encryptedContent.readAllBytes();
             DecryptRequest decryptRequest = DecryptRequest.builder().ciphertextBlob(SdkBytes.fromByteArray(content)).build();
             DecryptResponse decryptResponse = kmsAsyncClient.decrypt(decryptRequest).get(5, TimeUnit.SECONDS);
-            log.info("Decrypted content using kmskey: {}", awsConfig.kmsKeyId());
+            log.debug("Decrypted content using kmskey: {}", awsConfig.kmsKeyId());
             return decryptResponse.plaintext().asInputStream();
         } catch (ExecutionException | InterruptedException | TimeoutException | IOException e) {
             log.error("Error decrypting content :", e);
@@ -88,6 +105,15 @@ public class S3ServiceImpl implements S3Services {
         }
     }
 
+    /**
+     * Encrypts the provided input stream using AWS KMS and returns the encrypted content as an InputStream.
+     * This method reads all bytes from the provided content, creates a KMS EncryptRequest, and uses the
+     * AWS KMS client to encrypt the content. If any errors occur during encryption, a RuntimeException is thrown.
+     *
+     * @param content The InputStream containing the data to be encrypted.
+     * @return An InputStream containing the encrypted content.
+     * @throws RuntimeException If an error occurs during the encryption process.
+     */
     private InputStream encryptContent(InputStream content) {
         try {
             byte[] contentBytes = content.readAllBytes();
@@ -95,7 +121,7 @@ public class S3ServiceImpl implements S3Services {
         EncryptResponse encryptResponse;
 
             encryptResponse = kmsAsyncClient.encrypt(encryptRequest).get(5, TimeUnit.SECONDS);
-        log.info("Encrypted content using kmskey: {}", awsConfig.kmsKeyId());
+        log.debug("Encrypted content using kmskey: {}", awsConfig.kmsKeyId());
         return encryptResponse.ciphertextBlob().asInputStream();
         } catch (InterruptedException | ExecutionException | TimeoutException | IOException e) {
             throw new RuntimeException(e);

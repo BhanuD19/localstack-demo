@@ -16,8 +16,11 @@ public class MessagePublisherImpl implements MessagePublisher {
     }
 
     /**
-     * @param queueName - Queue name to which the message has to be sent
-     * @param message - SQS Message model to upload
+     * Publishes a message to the specified SQS queue.
+     * Logs the attempt to publish and confirms success upon completion.
+     *
+     * @param queueName The name of the SQS queue to which the message will be published.
+     * @param message The message object containing the content and unique identifier to be published.
      */
     @Override
     public void publish(String queueName, Message message) {

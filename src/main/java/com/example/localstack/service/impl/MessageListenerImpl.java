@@ -23,17 +23,19 @@ public class MessageListenerImpl implements MessageListener {
     }
 
     /**
-     * @param message - SQS message model to read
+     * Handles an incoming SQS message, processes it, and uploads its content to an S3 bucket.
+     *
+     * @param message The SQS message to process, containing a unique identifier and content.
      */
     @SqsListener(queueNames = "${app.queue-name}")
     @Override
     public void handle(Message message) {
-        log.info("Message received: {}", message);
+        log.debug("Message received: {}", message);
         var bucketName = awsConfig.bucketName();
         log.info("Uploading message to S3 bucket: {}", bucketName);
         var key = message.uuid().toString();
         var inputStream = new ByteArrayInputStream(message.content().getBytes(UTF_8));
         s3ServiceImpl.upload(bucketName, key, inputStream);
-        log.info("Message uploaded successfully");
+        log.info("{} Message uploaded successfully", key);
     }
 }
