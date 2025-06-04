@@ -22,11 +22,18 @@ spring:
           issuer-uri: http://localhost:9090/realms/test_local_realm
   cloud:
     aws:
+      region:
+        static: us-east-1
       kms:
+        region: us-east-1
+      dynamodb:
         region: us-east-1
 app:
   bucket-name: local-testbucket
   queue-name: local-testqueue
+  kms-key-id: testkey
+  dynamodb:
+    table-name: documents-metadata
 
 server:
   port: 8081

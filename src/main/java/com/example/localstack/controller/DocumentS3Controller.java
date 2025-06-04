@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/document")
+@RequestMapping("/api/v1/documents")
 @Tag(name = "Document Management API")
 @SecurityRequirements({@SecurityRequirement(name = "bearerAuth")})
 public class DocumentS3Controller {

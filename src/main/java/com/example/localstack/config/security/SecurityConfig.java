@@ -58,6 +58,8 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.authorizeHttpRequests(auth -> auth
                 .requestMatchers(new AntPathRequestMatcher("/api/v1/**"))
+                .authenticated()
+                .requestMatchers(new AntPathRequestMatcher("/api/v1/documents/**"))
                 .hasRole("user")
                 .requestMatchers(new AntPathRequestMatcher("/actuator/**"))
                 .permitAll()
