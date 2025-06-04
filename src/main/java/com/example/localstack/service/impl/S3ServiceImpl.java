@@ -1,10 +1,13 @@
 package com.example.localstack.service.impl;
 
 import com.example.localstack.config.AwsConfig;
+import com.example.localstack.data.DocumentMetadataRepository;
+import com.example.localstack.data.dbEntities.DocumentMetadata;
 import com.example.localstack.service.S3Services;
 import io.awspring.cloud.s3.S3Template;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.kms.KmsAsyncClient;
 import software.amazon.awssdk.services.kms.model.DecryptRequest;
@@ -12,8 +15,12 @@ import software.amazon.awssdk.services.kms.model.DecryptResponse;
 import software.amazon.awssdk.services.kms.model.EncryptRequest;
 import software.amazon.awssdk.services.kms.model.EncryptResponse;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -25,11 +32,13 @@ public class S3ServiceImpl implements S3Services {
     private final S3Template s3Template;
     private final KmsAsyncClient kmsAsyncClient;
     private final AwsConfig awsConfig;
+    private final DocumentMetadataRepository documentMetadataRepository;
 
-    public S3ServiceImpl(S3Template s3Template, KmsAsyncClient kmsAsyncClient, AwsConfig awsConfig) {
+    public S3ServiceImpl(S3Template s3Template, KmsAsyncClient kmsAsyncClient, AwsConfig awsConfig, DocumentMetadataRepository documentMetadataRepository) {
         this.s3Template = s3Template;
         this.kmsAsyncClient = kmsAsyncClient;
         this.awsConfig = awsConfig;
+        this.documentMetadataRepository = documentMetadataRepository;
     }
 
     /**
@@ -38,22 +47,48 @@ public class S3ServiceImpl implements S3Services {
      * Logs the upload process and handles any exceptions that occur during
      * the operation.
      *
-     * @param bucketName The name of the S3 bucket where the file will be uploaded.
-     * @param key The unique key or identifier for the uploaded file in the bucket.
-     * @param inputStream The input stream containing the file content to be uploaded.
+     * @param path      The name of the S3 bucket where the file will be uploaded.
+     * @param inputFile The input stream containing the file content to be uploaded.
+     * @param metaData  The input stream containing the file content to be uploaded.
+     * @param userId    The user id of the user uploading the file.
      */
     @Override
-    public void upload(String bucketName, String key, InputStream inputStream) {
-        log.info("Uploading file to S3 bucket: {}", bucketName);
+    public void upload(String path, MultipartFile inputFile, Map<String, String> metaData, String userId) {
+        String documentId = UUID.randomUUID().toString();
+        String s3Key = generateS3Key(path, documentId, inputFile.getOriginalFilename());
+
+        log.info("Uploading file to S3 bucket: {}", path);
         try {
-            s3Template.createBucket(bucketName);
-            InputStream encryptedContent = encryptContent(inputStream);
-            s3Template.upload(bucketName, key, encryptedContent);
-            log.info("File uploaded successfully with key: {}", key);
+            s3Template.createBucket(awsConfig.bucketName());
+            byte[] encryptedContent = encryptContent(inputFile.getInputStream());
+            s3Template.upload(awsConfig.bucketName(), s3Key, new ByteArrayInputStream(encryptedContent));
+            DocumentMetadata documentMetadata = DocumentMetadata.builder()
+                    .documentId(documentId)
+                    .fileName(inputFile.getOriginalFilename())
+                    .filePath(path)
+                    .contentType(inputFile.getContentType())
+                    .fileSize(inputFile.getSize())
+                    .version("1.0")
+                    .createdAt(Instant.now())
+                    .updatedAt(Instant.now())
+                    .createdBy(userId)
+                    .lastModifiedBy(userId)
+                    .s3Key(s3Key)
+                    .s3Bucket(awsConfig.bucketName())
+                    .metadata(metaData)
+                    .isEncrypted(true)
+                    .kmsKeyId(awsConfig.kmsKeyId())
+                    .build();
+            documentMetadataRepository.save(documentMetadata);
+            log.info("File uploaded successfully with key: {}", documentId);
         } catch (Exception e) {
-            log.error("Error uploading file to S3 bucket: {}", bucketName);
-            throw new RuntimeException("Failed to upload file to S3 bucket: " + bucketName + " with key: " + key + " due to: " + e.getMessage() + "");
+            log.error("Error uploading file to S3 bucket: {}", awsConfig.bucketName());
+            throw new RuntimeException("Failed to upload file to S3 bucket: ".concat(awsConfig.bucketName()).concat( " with key: ").concat(s3Key).concat(" due to: ").concat(e.getMessage()));
         }
+    }
+
+    private String generateS3Key(String path, String documentId, String originalFilename) {
+        return String.format("%s/%s/%s", path.replaceAll("^/", ""), documentId, originalFilename);
     }
 
     /**
@@ -114,7 +149,7 @@ public class S3ServiceImpl implements S3Services {
      * @return An InputStream containing the encrypted content.
      * @throws RuntimeException If an error occurs during the encryption process.
      */
-    private InputStream encryptContent(InputStream content) {
+    private byte[] encryptContent(InputStream content) {
         try {
             byte[] contentBytes = content.readAllBytes();
             EncryptRequest encryptRequest = EncryptRequest.builder().keyId(awsConfig.kmsKeyId()).plaintext(SdkBytes.fromByteArray(contentBytes)).build();
@@ -122,7 +157,7 @@ public class S3ServiceImpl implements S3Services {
 
             encryptResponse = kmsAsyncClient.encrypt(encryptRequest).get(5, TimeUnit.SECONDS);
         log.debug("Encrypted content using kmskey: {}", awsConfig.kmsKeyId());
-        return encryptResponse.ciphertextBlob().asInputStream();
+        return encryptResponse.ciphertextBlob().asByteArray();
         } catch (InterruptedException | ExecutionException | TimeoutException | IOException e) {
             throw new RuntimeException(e);
         }
