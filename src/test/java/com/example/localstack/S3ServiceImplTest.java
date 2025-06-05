@@ -36,10 +36,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @SpringBootTest
 @Testcontainers
@@ -87,8 +84,8 @@ public class S3ServiceImplTest {
         s3Service = new S3ServiceImpl(s3Template, kmsAsyncClient, awsConfig, documentMetadataRepository);
 
         // Set up common mock behaviors
-        when(awsConfig.bucketName()).thenReturn(TEST_BUCKET_NAME);
-        when(awsConfig.kmsKeyId()).thenReturn(TEST_KMS_KEY_ID);
+        lenient().when(awsConfig.bucketName()).thenReturn(TEST_BUCKET_NAME);
+        lenient().when(awsConfig.kmsKeyId()).thenReturn(TEST_KMS_KEY_ID);
     }
 
     @Test
@@ -128,6 +125,19 @@ public class S3ServiceImplTest {
     }
 
     @Test
+    void upload_ShouldThrowRuntimeException_WhenMultipartFileThrowsIOException() throws Exception {
+        // Given - Only mock what's needed before the IOException occurs
+        lenient().when(multipartFile.getOriginalFilename()).thenReturn(TEST_FILENAME);
+        when(multipartFile.getInputStream()).thenThrow(new IOException("File read error"));
+
+        // When & Then
+        assertThatThrownBy(() -> s3Service.upload(TEST_PATH, multipartFile, createTestMetadata(), TEST_USER_ID))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to upload file to S3 bucket")
+                .hasMessageContaining(TEST_BUCKET_NAME);
+    }
+
+    @Test
     void upload_ShouldGenerateCorrectS3Key_WithDifferentPaths() throws Exception {
         // Given
         String pathWithLeadingSlash = "/documents/test";
@@ -148,22 +158,11 @@ public class S3ServiceImplTest {
     }
 
     @Test
-    void upload_ShouldThrowRuntimeException_WhenMultipartFileThrowsIOException() throws Exception {
-        // Given
-        when(multipartFile.getInputStream()).thenThrow(new IOException("File read error"));
-        when(multipartFile.getOriginalFilename()).thenReturn(TEST_FILENAME);
-
-        // When & Then
-        assertThatThrownBy(() -> s3Service.upload(TEST_PATH, multipartFile, createTestMetadata(), TEST_USER_ID))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Failed to upload file to S3 bucket")
-                .hasMessageContaining(TEST_BUCKET_NAME);
-    }
-
-    @Test
     void upload_ShouldThrowRuntimeException_WhenKmsEncryptionFails() throws Exception {
-        // Given
-        setupMultipartFileMock();
+        // Given - Only mock what's needed before KMS encryption fails
+        when(multipartFile.getOriginalFilename()).thenReturn(TEST_FILENAME);
+        when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(TEST_FILE_CONTENT.getBytes()));
+        
         CompletableFuture<EncryptResponse> failedFuture = new CompletableFuture<>();
         failedFuture.completeExceptionally(new ExecutionException("KMS encryption failed", new RuntimeException()));
         when(kmsAsyncClient.encrypt(any(EncryptRequest.class))).thenReturn(failedFuture);
@@ -177,8 +176,10 @@ public class S3ServiceImplTest {
 
     @Test
     void upload_ShouldThrowRuntimeException_WhenKmsEncryptionTimesOut() throws Exception {
-        // Given
-        setupMultipartFileMock();
+        // Given - Only mock what's needed before KMS encryption times out
+        when(multipartFile.getOriginalFilename()).thenReturn(TEST_FILENAME);
+        when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(TEST_FILE_CONTENT.getBytes()));
+        
         CompletableFuture<EncryptResponse> timeoutFuture = new CompletableFuture<>();
         // Don't complete the future to simulate timeout
         when(kmsAsyncClient.encrypt(any(EncryptRequest.class))).thenReturn(timeoutFuture);
@@ -193,7 +194,8 @@ public class S3ServiceImplTest {
     @Test
     void upload_ShouldThrowRuntimeException_WhenS3TemplateThrowsException() throws Exception {
         // Given
-        setupMultipartFileMock();
+        when(multipartFile.getOriginalFilename()).thenReturn(TEST_FILENAME);
+        when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(TEST_FILE_CONTENT.getBytes()));
         setupSuccessfulKmsEncryption();
         doThrow(new RuntimeException("S3 upload failed")).when(s3Template).upload(anyString(), anyString(), any(InputStream.class));
 
