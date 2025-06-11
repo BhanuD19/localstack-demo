@@ -19,7 +19,9 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -60,7 +62,7 @@ public class S3ServiceImpl implements S3Services {
         log.info("Uploading file to S3 bucket: {}", path);
         try {
             s3Template.createBucket(awsConfig.bucketName());
-            byte[] encryptedContent = encryptContent(inputFile.getInputStream());
+            byte[] encryptedContent = encryptContent(inputFile.getBytes());
             s3Template.upload(awsConfig.bucketName(), s3Key, new ByteArrayInputStream(encryptedContent));
             DocumentMetadata documentMetadata = DocumentMetadata.builder()
                     .documentId(documentId)
@@ -87,23 +89,44 @@ public class S3ServiceImpl implements S3Services {
         }
     }
 
-    private String generateS3Key(String path, String documentId, String originalFilename) {
-        return String.format("%s/%s/%s", path.replaceAll("^/", ""), documentId, originalFilename);
+    @Override
+    public InputStream downloadDocument(String documentId) throws IOException {
+        Optional<DocumentMetadata> metadata = documentMetadataRepository.findById(documentId);
+        if (metadata.isEmpty()) {
+            throw new RuntimeException("Document not found: " + documentId);
+        }
+
+        DocumentMetadata doc = metadata.get();
+        InputStream encryptedStream = s3Template.download(doc.getS3Bucket(), doc.getS3Key()).getInputStream();
+
+        byte[] encryptedData = encryptedStream.readAllBytes();
+        byte[] decryptedData = decryptContent(encryptedData);
+        return new ByteArrayInputStream(decryptedData);
     }
 
-    /**
-     * Downloads a file from an S3 bucket, decrypts its content, and returns it as an InputStream.
-     *
-     * @param bucketName The name of the S3 bucket from which the file will be downloaded.
-     * @param key The unique key or identifier of the file to be downloaded within the bucket.
-     * @return An InputStream containing the decrypted content of the downloaded file.
-     * @throws IOException If an error occurs during the download process.
-     */
+
     @Override
-    public InputStream download(String bucketName, String key) throws IOException {
-        log.info("Downloading file from S3 bucket: {}", bucketName);
-        InputStream encryptedContent = s3Template.download(bucketName, key).getInputStream();
-        return decryptContent(encryptedContent);
+    public List<DocumentMetadata> searchByMetadata(Map<String, String> searchCriteria) {
+        return documentMetadataRepository.searchByMetadata(searchCriteria);
+    }
+
+    @Override
+    public List<DocumentMetadata> findByPath(String path) {
+        return documentMetadataRepository.findByPath(path);
+    }
+
+    @Override
+    public List<DocumentMetadata> findByCreatedBy(String userId) {
+        return documentMetadataRepository.findByCreatedBy(userId);
+    }
+
+    @Override
+    public Optional<DocumentMetadata> getDocumentMetadata(String documentId) {
+        return documentMetadataRepository.findById(documentId);
+    }
+
+    private String generateS3Key(String path, String documentId, String originalFilename) {
+        return String.format("%s/%s/%s", path.replaceAll("^/", ""), documentId, originalFilename);
     }
 
     /**
@@ -115,28 +138,17 @@ public class S3ServiceImpl implements S3Services {
      * @return An InputStream containing the decrypted content.
      * @throws RuntimeException If an error occurs during the decryption process.
      */
-    private InputStream decryptContent(InputStream encryptedContent) {
+    private byte[] decryptContent(byte[] encryptedContent) {
         try {
-            byte[] content = encryptedContent.readAllBytes();
-            DecryptRequest decryptRequest = DecryptRequest.builder().ciphertextBlob(SdkBytes.fromByteArray(content)).build();
+            DecryptRequest decryptRequest = DecryptRequest.builder()
+                    .ciphertextBlob(SdkBytes.fromByteArray(encryptedContent))
+                    .build();
             DecryptResponse decryptResponse = kmsAsyncClient.decrypt(decryptRequest).get(5, TimeUnit.SECONDS);
             log.debug("Decrypted content using kmskey: {}", awsConfig.kmsKeyId());
-            return decryptResponse.plaintext().asInputStream();
-        } catch (ExecutionException | InterruptedException | TimeoutException | IOException e) {
+            return decryptResponse.plaintext().asByteArray();
+        } catch (ExecutionException | InterruptedException | TimeoutException e) {
             log.error("Error decrypting content :", e);
             throw new RuntimeException("failed to decrypt content", e);
-        }
-    }
-
-    /**
-     * @param bucketName - S3 bucket to download from
-     * @param key - Name of the resource to download
-     * @return - String representation of the data stored
-     */
-    @Override
-    public String downloadAsString(String bucketName, String key) throws IOException {
-        try (InputStream is = download(bucketName, key)) {
-            return new String(is.readAllBytes());
         }
     }
 
@@ -149,16 +161,18 @@ public class S3ServiceImpl implements S3Services {
      * @return An InputStream containing the encrypted content.
      * @throws RuntimeException If an error occurs during the encryption process.
      */
-    private byte[] encryptContent(InputStream content) {
+    private byte[] encryptContent(byte[] content) {
         try {
-            byte[] contentBytes = content.readAllBytes();
-            EncryptRequest encryptRequest = EncryptRequest.builder().keyId(awsConfig.kmsKeyId()).plaintext(SdkBytes.fromByteArray(contentBytes)).build();
+            EncryptRequest encryptRequest = EncryptRequest.builder()
+                    .keyId(awsConfig.kmsKeyId())
+                    .plaintext(SdkBytes.fromByteArray(content))
+                    .build();
         EncryptResponse encryptResponse;
 
             encryptResponse = kmsAsyncClient.encrypt(encryptRequest).get(5, TimeUnit.SECONDS);
         log.debug("Encrypted content using kmskey: {}", awsConfig.kmsKeyId());
         return encryptResponse.ciphertextBlob().asByteArray();
-        } catch (InterruptedException | ExecutionException | TimeoutException | IOException e) {
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
             throw new RuntimeException(e);
         }
     }
