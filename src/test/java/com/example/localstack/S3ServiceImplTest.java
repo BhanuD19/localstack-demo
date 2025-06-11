@@ -29,7 +29,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -298,7 +297,7 @@ public class S3ServiceImplTest {
         when(multipartFile.getInputStream()).thenReturn(new ByteArrayInputStream(TEST_FILE_CONTENT.getBytes()));
     }
 
-    private void setupSuccessfulKmsEncryption() throws InterruptedException, ExecutionException, TimeoutException {
+    private void setupSuccessfulKmsEncryption() {
         EncryptResponse encryptResponse = mock(EncryptResponse.class);
         SdkBytes encryptedBytes = SdkBytes.fromByteArray("encrypted-content".getBytes());
         when(encryptResponse.ciphertextBlob()).thenReturn(encryptedBytes);
