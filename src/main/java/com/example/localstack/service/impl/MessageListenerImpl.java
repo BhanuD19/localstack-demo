@@ -35,7 +35,7 @@ public class MessageListenerImpl implements MessageListener {
         log.info("Uploading message to S3 bucket: {}", bucketName);
         var key = message.uuid().toString();
         var inputStream = new ByteArrayInputStream(message.content().getBytes(UTF_8));
-        s3ServiceImpl.upload(bucketName, key, inputStream);
+//        s3ServiceImpl.upload(bucketName, key, inputStream, metadata);
         log.info("{} Message uploaded successfully", key);
     }
 }

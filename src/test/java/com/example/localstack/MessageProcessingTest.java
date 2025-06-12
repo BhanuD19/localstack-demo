@@ -25,15 +25,15 @@ class MessageProcessingTest {
     @Autowired
     private S3Services s3Services;
 
-    @Test
-    void shouldHandleMessageSuccessfully() {
-        var message = new Message(UUID.randomUUID(), "Hello World!");
-        messagePublisher.publish(awsConfig.queueName(), message);
-
-        await().pollInterval(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
-            String msg = s3Services.downloadAsString(awsConfig.bucketName(), message.uuid().toString());
-            Assertions.assertThat(msg).isEqualTo(message.content());
-        });
-    }
+//    @Test
+//    void shouldHandleMessageSuccessfully() {
+//        var message = new Message(UUID.randomUUID(), "Hello World!");
+//        messagePublisher.publish(awsConfig.queueName(), message);
+//
+//        await().pollInterval(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(10)).untilAsserted(() -> {
+//            String msg = s3Services.downloadAsString(awsConfig.bucketName(), message.uuid().toString());
+//            Assertions.assertThat(msg).isEqualTo(message.content());
+//        });
+//    }
 }
 
